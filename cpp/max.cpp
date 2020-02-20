@@ -26,8 +26,8 @@ struct Library
 
 struct Subscription
 {
-        unsigned id;
-        std::vector<unsigned> books;
+        unsigned libraryId;
+        std::vector<unsigned> bookIds;
 };
 
 struct Solution
@@ -72,7 +72,7 @@ Solution solveNaive(const std::vector<Library> &libraries, unsigned dayCount)
                 if (remainingDays == 0)
                 {
                         Subscription newSubscription;
-                        newSubscription.id = sortedLibraries[currentLibrary].id;
+                        newSubscription.libraryId = sortedLibraries[currentLibrary].id;
                         solution.subscriptions.push_back(newSubscription);
 
                         currentLibrary++;
@@ -83,14 +83,14 @@ Solution solveNaive(const std::vector<Library> &libraries, unsigned dayCount)
 
                 for (auto &subscription : solution.subscriptions)
                 {
-                        const auto &library = libraries[subscription.id];
+                        const auto &library = libraries[subscription.libraryId];
                         for (int out = 0; out < library.output; out++)
                         {
                                 for (auto book : library.books)
                                 {
                                         if (!alreadySent[book.id])
                                         {
-                                                subscription.books.push_back(book.id);
+                                                subscription.bookIds.push_back(book.id);
                                         }
                                 }
                         }
