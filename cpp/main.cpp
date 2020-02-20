@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <iostream>
 #include <istream>
+#include <fstream>
 
 #include <books.hpp>
 
@@ -11,7 +12,7 @@ operator>>(std::istream &in, Problem &problem) {
     in >> problem.dayCount;
 
     std::copy_n(
-        std::istream_iterator<std::uint16_t>(in),
+        std::istream_iterator<unsigned int>(in),
         problem.bookCount,
         std::back_inserter(problem.bookScores)
     );
@@ -39,7 +40,7 @@ operator>>(std::istream &in, Library &library) {
     in >> library.throughput;
 
     std::copy_n(
-        std::istream_iterator<std::uint16_t>(in),
+        std::istream_iterator<unsigned int>(in),
         bookCount,
         std::back_inserter(library.books)
     );
@@ -115,7 +116,16 @@ int
 main(int argc, char const **argv) {
     Problem problem;
 
-    std::cin >> problem;
+    if (argc > 1) {
+        const std::string filepath(argv[1]);
+        auto in = std::ifstream(filepath);
+        if (in) {
+            in >> problem;
+        }
+    } else {
+        std::cin >> problem;
+    }
+
     std::cout << solve(problem);
 
     return 0;

@@ -27,4 +27,4 @@ struct Solution {
     std::vector<Subscription> subscriptions;
 };
 
-Solution solve(const Problem &problem);
+Solution solve(Problem &problem);
