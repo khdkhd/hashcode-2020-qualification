@@ -18,6 +18,15 @@ struct Problem {
     std::vector<Library> libraries;
 };
 
+struct Subscription {
+    unsigned int libraryId;
+    std::vector<unsigned int> bookIds;
+};
+
+struct Solution {
+    std::vector<Subscription> subscriptions;
+};
+
 std::istream &
 operator>>(std::istream &in, Problem &problem) {
     in >> problem.bookCount;
@@ -95,6 +104,28 @@ operator<<(std::ostream &out, const Problem &problem) {
         std::ostream_iterator<Library>(out, "\n")
     );
 
+    return out;
+}
+
+std::ostream &
+operator<<(std::ostream &out, const Subscription &subscription) {
+    out << subscription.libraryId << " " << subscription.bookIds.size() << '\n';
+    std::copy(
+        subscription.bookIds.begin(),
+        subscription.bookIds.end(),
+        std::ostream_iterator<unsigned int>(out, " ")
+    );
+    return out;
+}
+
+std::ostream &
+operator<<(std::ostream &out, const Solution &solution) {
+    out << solution.subscriptions.size() << '\n';
+    std::copy(
+        solution.subscriptions.begin(),
+        solution.subscriptions.end(),
+        std::ostream_iterator<unsigned int>(std::cout, "\n")
+    );
     return out;
 }
 
