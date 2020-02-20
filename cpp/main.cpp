@@ -19,6 +19,27 @@ struct Problem {
 };
 
 std::istream &
+operator>>(std::istream &in, Problem &problem) {
+    in >> problem.bookCount;
+    in >> problem.libraryCount;
+    in >> problem.dayCount;
+
+    std::copy_n(
+        std::istream_iterator<std::uint16_t>(in),
+        problem.bookCount,
+        std::back_inserter(problem.bookScores)
+    );
+
+    std::copy_n(
+        std::istream_iterator<Library>(in),
+        problem.libraryCount,
+        std::back_inserter(problem.libraries)
+    );
+
+    return in;
+}
+
+std::istream &
 operator>>(std::istream &in, Library &library) {
     unsigned int bookCount;
 
@@ -35,7 +56,6 @@ operator>>(std::istream &in, Library &library) {
     return in;
 }
 
-namespace std {
 std::ostream &
 operator<<(std::ostream &out, const Library &library) {
     std::cout
@@ -52,30 +72,10 @@ operator<<(std::ostream &out, const Library &library) {
 
     return out;
 }
-}
 
-
-int
-main(int argc, char const **argv) {
-    Problem problem;
-
-    std::cin >> problem.bookCount;
-    std::cin >> problem.libraryCount;
-    std::cin >> problem.dayCount;
-
-    std::copy_n(
-        std::istream_iterator<std::uint16_t>(std::cin),
-        problem.bookCount,
-        std::back_inserter(problem.bookScores)
-    );
-
-    std::copy_n(
-        std::istream_iterator<Library>(std::cin),
-        problem.libraryCount,
-        std::back_inserter(problem.libraries)
-    );
-
-    std::cout
+std::ostream &
+operator<<(std::ostream &out, const Problem &problem) {
+    out
         << "   problem.bookCount " << problem.bookCount << std::endl
         << "problem.libraryCount " << problem.libraryCount << std::endl
         << "    problem.dayCount " << problem.dayCount << std::endl
@@ -84,18 +84,26 @@ main(int argc, char const **argv) {
     std::copy(
         problem.bookScores.begin(),
         problem.bookScores.end(),
-        std::ostream_iterator<unsigned int>(std::cout, " ")
+        std::ostream_iterator<unsigned int>(out, " ")
     );
 
-    std::cout << std::endl;
+    out << std::endl;
 
     std::copy(
         problem.libraries.begin(),
         problem.libraries.end(),
-        std::ostream_iterator<Library>(std::cout, "\n")
+        std::ostream_iterator<Library>(out, "\n")
     );
 
-    std::cout << std::endl;
+    return out;
+}
+
+int
+main(int argc, char const **argv) {
+    Problem problem;
+
+    std::cin >> problem;
+    std::cout << problem << std::endl;
 
     return 0;
 }
