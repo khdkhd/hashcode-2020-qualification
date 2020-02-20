@@ -1,31 +1,8 @@
+#include <algorithm>
 #include <iostream>
 #include <istream>
-#include <vector>
 
-struct Library {
-    unsigned int id = 0;
-    unsigned int signUpTime;
-    unsigned int throughput;
-    unsigned int totalPoints;
-    std::vector<unsigned int> books;
-};
-
-struct Problem {
-    unsigned int bookCount;
-    unsigned int libraryCount;
-    unsigned int dayCount;
-    std::vector<unsigned int> bookScores;
-    std::vector<Library> libraries;
-};
-
-struct Subscription {
-    unsigned int libraryId;
-    std::vector<unsigned int> bookIds;
-};
-
-struct Solution {
-    std::vector<Subscription> subscriptions;
-};
+#include <books.hpp>
 
 std::istream &
 operator>>(std::istream &in, Problem &problem) {
@@ -124,7 +101,7 @@ operator<<(std::ostream &out, const Solution &solution) {
     std::copy(
         solution.subscriptions.begin(),
         solution.subscriptions.end(),
-        std::ostream_iterator<unsigned int>(std::cout, "\n")
+        std::ostream_iterator<Subscription>(out, "\n")
     );
     return out;
 }
@@ -134,7 +111,7 @@ main(int argc, char const **argv) {
     Problem problem;
 
     std::cin >> problem;
-    std::cout << problem << std::endl;
+    std::cout << solve(problem);
 
     return 0;
 }
