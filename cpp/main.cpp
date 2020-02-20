@@ -21,6 +21,11 @@ operator>>(std::istream &in, Problem &problem) {
         problem.libraryCount,
         std::back_inserter(problem.libraries)
     );
+    
+    unsigned int library_index = 0;
+    for (auto &library: problem.libraries) {
+        library.id = library_index++;
+    }
 
     return in;
 }
