@@ -11,7 +11,7 @@ struct Library {
     unsigned int id{0};
     unsigned int signUpTime{0};
     unsigned int throughput{0};
-    unsigned int totalPoints{0};
+    unsigned int bookCount{0};
     std::vector<unsigned int> books;
 };
 

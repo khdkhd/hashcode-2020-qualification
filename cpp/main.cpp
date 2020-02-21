@@ -35,16 +35,14 @@ operator>>(std::istream &in, Problem &problem) {
 
 std::istream &
 operator>>(std::istream &in, Library &library) {
-    unsigned int bookCount;
-
-    in >> bookCount;
+    in >> library.bookCount;
     in >> library.signUpTime;
     in >> library.throughput;
 
     library.books.clear();
     std::copy_n(
         std::istream_iterator<unsigned int>(in),
-        bookCount,
+        library.bookCount,
         std::back_inserter(library.books)
     );
 
@@ -57,6 +55,7 @@ operator<<(std::ostream &out, const Library &library) {
         << "        library.id " << library.id << std::endl
         << "library.signUpTime " << library.signUpTime << std::endl
         << "library.throughput " << library.throughput << std::endl
+        << " library.bookCount " << library.bookCount << std::endl
         << "     library.books ";
 
     std::copy(
