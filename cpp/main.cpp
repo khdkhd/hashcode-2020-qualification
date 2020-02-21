@@ -2,8 +2,10 @@
 #include <iostream>
 #include <istream>
 #include <fstream>
+#include <exception>
 
 #include <books.hpp>
+#include <solver.hpp>
 
 std::istream &
 operator>>(std::istream &in, Problem &problem) {
@@ -39,6 +41,7 @@ operator>>(std::istream &in, Library &library) {
     in >> library.signUpTime;
     in >> library.throughput;
 
+    library.books.clear();
     std::copy_n(
         std::istream_iterator<unsigned int>(in),
         bookCount,
@@ -116,17 +119,30 @@ int
 main(int argc, char const **argv) {
     Problem problem;
 
-    if (argc > 1) {
-        const std::string filepath(argv[1]);
-        auto in = std::ifstream(filepath);
-        if (in) {
-            in >> problem;
+    try {
+        if (argc < 2) {
+            std::cerr << "Usage: hascode-2020-books <SOLVER_NAME> [FILE]" << std::endl;
+            return 1;
         }
-    } else {
-        std::cin >> problem;
-    }
 
-    std::cout << solve(problem);
+        Solver solve = createSolver(argv[1]);
+
+        if (argc < 3) {
+            std::cin >> problem;
+        } else {
+            if (auto in = std::ifstream(argv[2])) {
+                in >> problem;
+            } else {
+                std::cerr << "Failed to open: " << std::quoted(argv[2]) << std::endl;
+                return 1;
+            }
+        }
+
+        std::cout << solve(problem, {});
+    } catch (std::invalid_argument &err) {
+        std::cerr << err.what() << std::endl;
+        return 1;
+    }
 
     return 0;
 }

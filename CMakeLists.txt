@@ -5,6 +5,9 @@ project(hashcode-2020-books)
 add_executable(${PROJECT_NAME}
     cpp/books.hpp
     cpp/solver.cpp
+    cpp/solver.hpp
+    cpp/solvers/jux.cpp
+    cpp/solvers/max.cpp
     cpp/main.cpp
 )
 
