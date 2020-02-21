@@ -13,7 +13,7 @@ remainingDays(Problem &problem, unsigned int days) {
     return problem.dayCount - days;
 }
 
-Solver juxSolver([](Problem &problem, const Options &) {
+Solver jux1Solver([](Problem &problem, const Options &) {
     Solution solution;
 
     std::bitset<1000000> bookState; // 0: available, 1: taken
