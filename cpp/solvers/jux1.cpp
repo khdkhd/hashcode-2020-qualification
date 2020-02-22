@@ -5,6 +5,7 @@
 #include <iostream>
 #include <numeric>
 
+namespace {
 unsigned int
 remainingDays(Problem &problem, unsigned int days) {
     if (days >= problem.dayCount) {
@@ -12,11 +13,13 @@ remainingDays(Problem &problem, unsigned int days) {
     }
     return problem.dayCount - days;
 }
+}
 
 Solver jux1Solver([](Problem &problem, const Options &) {
     Solution solution;
 
     std::bitset<1000000> bookState; // 0: available, 1: taken
+    bookState.set();
 
     // Sort libraries books by their score and remove duplicates
     std::cerr << "sort libraries books" << std::endl;
@@ -25,15 +28,8 @@ Solver jux1Solver([](Problem &problem, const Options &) {
             library.books.begin(),
             library.books.end(),
             [&problem](auto book_id1, auto book_id2) {
-                return problem.bookScores[book_id1] < problem.bookScores[book_id2];
+                return problem.bookScores[book_id1] > problem.bookScores[book_id2];
             }
-        );
-        library.books.erase(
-            std::unique(
-                library.books.begin(),
-                library.books.end()
-            ),
-            library.books.end()
         );
     }
     std::cerr << "sort libraries books - done!" << std::endl;
@@ -48,8 +44,8 @@ Solver jux1Solver([](Problem &problem, const Options &) {
         [&problem](const auto &library) {
             const auto bookCount = (problem.dayCount - library.signUpTime)*library.throughput;
             return std::accumulate(
-                library.books.rbegin(),
-                library.books.rbegin() + std::min<std::size_t>(library.books.size(), bookCount),
+                library.books.begin(),
+                library.books.begin() + std::min<std::size_t>(library.books.size(), bookCount),
                 0u,
                 [&problem](auto acc, auto book_id) {
                     return acc + problem.bookScores[book_id];
@@ -78,17 +74,16 @@ Solver jux1Solver([](Problem &problem, const Options &) {
         sign_up_offset += library.signUpTime;
         auto bookCount = remainingDays(problem, sign_up_offset)*library.throughput;
 
-        std::cerr << "  library[" << library.id << "]" << std::endl;
-
         Subscription subscription{library.id};
 
-        if (!bookState.all()) {
-            for (auto it = library.books.rbegin(), last = library.books.rend()
+        if (bookState.any()) {
+            for (auto it = library.books.begin(), last = library.books.end()
                     ; it < last && bookCount > 0
                     ; ++it) {
                 const auto book_id = *it;
-                if (!bookState[book_id]) {
-                    bookState.set(book_id);
+                if (bookState[book_id]) {
+                    bookState[book_id] = false;
+                    bookCount = bookCount - 1;
                     subscription.bookIds.emplace_back(book_id);
                 }
             }

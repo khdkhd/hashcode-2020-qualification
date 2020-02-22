@@ -5,6 +5,7 @@ project(hashcode-2020-books)
 list(APPEND SOLVERS
     "${CMAKE_CURRENT_SOURCE_DIR}/cpp/solvers/jux1.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/cpp/solvers/jux2.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/cpp/solvers/jux3.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/cpp/solvers/max.cpp"
 )
 
@@ -31,7 +32,7 @@ add_executable(${PROJECT_NAME}
     ${SOLVERS}
 )
 
-target_include_directories(${PROJECT_NAME} 
+target_include_directories(${PROJECT_NAME}
     PUBLIC
         "${CMAKE_CURRENT_SOURCE_DIR}/cpp"
         "${CMAKE_BINARY_DIR}"
