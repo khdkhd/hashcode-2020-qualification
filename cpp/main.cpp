@@ -101,7 +101,7 @@ main(int argc, char const **argv) {
                 *output << solution;
 
                 return std::make_tuple(
-                    basename(input_filepath),
+                    input_filepath.size() == 0 ? "" : basename(input_filepath),
                     problem,
                     solution
                 );
