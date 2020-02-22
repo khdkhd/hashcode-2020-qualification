@@ -51,10 +51,51 @@ double regularize(double value, double min, double max)
         return (value - min) / (max - min);
 }
 
-double inverseRegularize(double value, double min, double max)
+template <typename T>
+class Statistics
 {
-        return regularize(-value, -max, -min);
-}
+public:
+        unsigned int counter;
+        T sum;
+        T min;
+        T max;
+
+        Statistics()
+        {
+                this->min = std::numeric_limits<T>::max();
+                this->max = std::numeric_limits<T>::min();
+                this->counter = 0;
+                this->sum = 0;
+        }
+
+        void count(const T value)
+        {
+                this->counter++;
+                this->sum += value;
+                if (value < this->min)
+                {
+                        this->min = value;
+                }
+                if (value > this->max)
+                {
+                        this->max = value;
+                }
+        }
+
+        double average()
+        {
+                return (double)sum / counter;
+        }
+
+        double regularize(const T value)
+        {
+                if (this->min == this->max)
+                {
+                        return 0.5;
+                }
+                return ((double)value - this->min) / (this->max - this->min);
+        }
+};
 
 template <typename Iter_T>
 long double vectorNorm(Iter_T first, Iter_T last)
@@ -64,6 +105,10 @@ long double vectorNorm(Iter_T first, Iter_T last)
 
 void computeLibraryStatistics(std::vector<LibraryStatistics> &statistics, const Problem &problem, std::vector<BookStatistics> &bookStatistics)
 {
+        Statistics<double> scorePotentialStats;
+        Statistics<unsigned int> signUpTimeStats;
+        Statistics<unsigned int> throughputStats;
+
         double minScorePotential = std::numeric_limits<double>::max();
         double maxScorePotential = std::numeric_limits<double>::min();
 
@@ -117,12 +162,13 @@ void computeLibraryStatistics(std::vector<LibraryStatistics> &statistics, const 
         for (const auto &library : problem.libraries)
         {
                 statistics[index].scorePotential = regularize(statistics[index].rawScorePotential, minScorePotential, maxScorePotential);
-                statistics[index].signUpTime = inverseRegularize(problem.libraries[index].signUpTime, minSignUpTime, maxSignUpTime);
-
+                statistics[index].signUpTime = 1 - regularize(problem.libraries[index].signUpTime, minSignUpTime, maxSignUpTime);
+                /*
                 cerr << index << ";Rare books = " << statistics[index].rawRareBookCount << "/" << library.bookCount << endl;
                 cerr << index << ";Signup time score = " << statistics[index].signUpTime << endl;
                 cerr << index << ";Score potential score = " << statistics[index].rawScorePotential << ";" << minScorePotential << endl;
                 cerr << index << ";" << statistics[index].scorePotential << ";" << statistics[index].signUpTime << endl;
+                */
                 index++;
         }
 }
@@ -145,49 +191,44 @@ void computeLibraryScores(std::vector<LibraryStatistics> &statistics, double sco
 
 void computeBookStatistics(std::vector<BookStatistics> &statistics, const Problem &problem)
 {
-        unsigned int minScore = problem.bookScores[0];
-        unsigned int maxScore = problem.bookScores[0];
+        Statistics<unsigned int> scoreStats;
+        Statistics<unsigned int> idfStats;
 
-        double minIdf = problem.libraryCount;
-        double maxIdf = 0;
         for (const auto &library : problem.libraries)
         {
-                for (const auto &book : library.books)
+                for (const auto book : library.books)
                 {
                         statistics[book].libraryCount++;
                         statistics[book].rawScore = problem.bookScores[book];
-                        statistics[book].rawIdf = (double)problem.libraryCount / statistics[book].libraryCount;
-                        statistics[book].score = problem.bookScores[book];
-                        cerr << statistics[book].score << endl;
-                        if (statistics[book].score > maxScore)
-                        {
-                                maxScore = problem.bookScores[book];
-                        }
-                        if (statistics[book].score < minScore)
-                        {
-                                minScore = problem.bookScores[book];
-                        }
-                        if (statistics[book].rawIdf > maxIdf)
-                        {
-                                maxIdf = statistics[book].rawIdf;
-                        }
-                        if (statistics[book].rawIdf < minIdf)
-                        {
-                                minIdf = statistics[book].rawIdf;
-                        }
+                        scoreStats.count(statistics[book].rawScore);
                 }
         }
 
         int index = 0;
         for (auto &statistic : statistics)
         {
-                statistic.score = regularize(problem.bookScores[index], minScore, maxScore);
-                statistic.idf = regularize(statistics[index].rawIdf, minIdf, maxIdf);
+                if (statistics[index].libraryCount > 0)
+                {
+                        statistic.rawIdf = (double)problem.libraryCount / statistics[index].libraryCount;
+                }
+                else
+                {
+                        statistic.rawIdf = 0;
+                }
+                idfStats.count(statistics[index].rawIdf);
+                index++;
+        }
+
+        index = 0;
+        for (auto &statistic : statistics)
+        {
+                statistic.score = scoreStats.regularize(statistics[index].rawScore);
+                statistic.idf = idfStats.regularize(statistics[index].rawIdf);
                 index++;
         }
 }
 
-void computeBookScores(std::vector<BookStatistics> &statistics, double scoreWeight = 3, double idfWeight = 2)
+void computeBookScores(std::vector<BookStatistics> &statistics, double scoreWeight = 1, double idfWeight = 0)
 {
         int index = 0;
         for (auto &statistic : statistics)
@@ -200,10 +241,11 @@ void computeBookScores(std::vector<BookStatistics> &statistics, double scoreWeig
 
                 cerr << "book=" << index
                      << ";rawScore=" << statistic.rawScore
-                     << ";regularizedScore=" << statistic.score
-                     << ";idf=" << statistic.rawIdf
-                     << ";regularizedIdf=" << statistic.idf
-                     << ";regularizedScore=" << statistic.aggregatedScore << endl;
+                     << ";score=" << statistic.score
+                     << ";rawIdf=" << statistic.rawIdf
+                     << ";idf=" << statistic.idf
+                     << ";aggregatedScore=" << statistic.aggregatedScore << endl;
+
                 index++;
         }
 }
@@ -215,6 +257,12 @@ Solver maxSolver([](const Problem &input, const Options &) {
         std::vector<LibraryStatistics> libraryStatistics(preparedProblem.libraryCount);
 
         computeBookStatistics(bookStatistics, input);
+        for (const auto score : input.bookScores)
+        {
+
+                cerr << score << " ";
+        }
+        cerr << endl;
         computeBookScores(bookStatistics);
         computeLibraryStatistics(libraryStatistics, input, bookStatistics);
         computeLibraryScores(libraryStatistics);
