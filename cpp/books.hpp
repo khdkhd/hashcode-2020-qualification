@@ -23,6 +23,9 @@ struct Problem {
     std::vector<Library> libraries;
 };
 
+std::istream &operator>>(std::istream &, Problem &);
+std::ostream &operator<<(std::ostream &, const Problem &);
+
 struct Subscription {
     unsigned int libraryId{0};
     std::vector<unsigned int> bookIds;
@@ -31,6 +34,10 @@ struct Subscription {
 struct Solution {
     std::vector<Subscription> subscriptions;
 };
+
+std::ostream &operator<<(std::ostream &, const Solution &);
+
+unsigned int score(const Problem &, const Solution &);
 
 using OptionKey = std::string;
 using OptionValue = std::variant<intmax_t, double, std::string>;

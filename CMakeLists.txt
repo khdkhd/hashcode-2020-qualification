@@ -24,6 +24,8 @@ add_custom_command(
 add_executable(${PROJECT_NAME}
     cpp/books.hpp
     cpp/solver.hpp
+    cpp/problem.cpp
+    cpp/solution.cpp
     cpp/main.cpp
     ${EXPORT_SOLVER_CPP}
     ${SOLVERS}
