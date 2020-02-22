@@ -1,9 +1,19 @@
 #include <books.hpp>
 
+#include <algorithm>
 #include <bitset>
 #include <numeric>
+#include <bitset>
+#include <cmath>
 #include <iostream>
 #include <set>
+
+#include <algorithm>
+#include <bitset>
+#include <iostream>
+#include <numeric>
+
+using namespace std;
 
 // bool
 // byPotential(const Library &library1, const Library &library2) {
@@ -12,79 +22,256 @@
 //     return score1 > score2;
 // }
 
-Solver maxSolver([](Problem &problem, const Options &) {
-    Solution solution;
-    // std::bitset<100000> alreadySent;
+struct BookStatistics
+{
+        long double aggregatedScore;
 
-    // for (auto &library: problem.libraries) {
-    //     library.totalPoints = std::accumulate(library.books.begin(), library.books.end(), 0);
-    // }
+        double score;
+        double idf;
 
-    // std::sort(problem.libraries.begin(), problem.libraries.end(), byPotential);
+        double rawIdf;
+        unsigned int libraryCount;
+};
 
-    // const auto bookByScore = [&problem](unsigned int book1, unsigned int book2) {
-    //     return problem.bookScores[book1] > problem.bookScores[book2];
-    // };
+struct LibraryStatistics
+{
+        long double aggregatedScore;
 
-    // for (auto &library : problem.libraries) {
-    //     std::sort(library.books.begin(), library.books.end(), bookByScore);
-    // }
+        double scorePotential;
+        double signUpTime; // (!) More is better (!)
 
-    // auto currentLibrary = 0;
-    // int remainingDays = problem.libraries[currentLibrary].signUpTime;
+        double rawBookScoreTotal;
+        unsigned int rawRareBookCount;
+        double rawAverageBookScore;
+        double rawAverageScorePerDay;
+        unsigned int rawMaxOperatingDays;
+        double rawScorePotential;
+};
 
-    // for (auto day = 0; day < problem.dayCount; day++) {
-    //     std::cerr << day << "/" << problem.dayCount << std::endl;
+double regularize(double value, double min, double max)
+{
+        return (value - min) / (max - min);
+}
 
-    //     if (remainingDays == 0) {
-    //         Subscription newSubscription;
-    //         newSubscription.libraryId = problem.libraries[currentLibrary].id;
-    //         solution.subscriptions.push_back(newSubscription);
-    //         currentLibrary++;
-    //         remainingDays = problem.libraries[currentLibrary].signUpTime;
-    //     }
+double inverseRegularize(double value, double min, double max)
+{
+        return regularize(-value, -max, -min);
+}
 
-    //     remainingDays--;
+template <typename Iter_T>
+long double vectorNorm(Iter_T first, Iter_T last)
+{
+        return sqrt(inner_product(first, last, first, 0.0L));
+}
 
-    //     std::set<unsigned int> emptySubscriptions;
+void computeLibraryStatistics(std::vector<LibraryStatistics> &statistics, const Problem &problem, std::vector<BookStatistics> &bookStatistics)
+{
+        double minScorePotential = std::numeric_limits<double>::max();
+        double maxScorePotential = std::numeric_limits<double>::min();
 
-    //     for (auto &subscription : solution.subscriptions) {
+        double minSignUpTime = problem.libraries[0].signUpTime;
+        double maxSignUpTime = problem.libraries[0].signUpTime;
 
-    //         if (emptySubscriptions.count(subscription.libraryId)) {
-    //             continue;
-    //         }
+        int index = 0;
+        for (const auto &library : problem.libraries)
+        {
+                for (const auto &book : library.books)
+                {
+                        statistics[index].rawBookScoreTotal += bookStatistics[book].aggregatedScore;
+                        if (bookStatistics[book].idf > 0.9)
+                        {
+                                statistics[index].rawRareBookCount++;
+                        }
+                }
+                statistics[index].rawAverageBookScore = statistics[index].rawBookScoreTotal / library.bookCount;
+                statistics[index].rawAverageScorePerDay = library.throughput * statistics[index].rawAverageBookScore;
+                statistics[index].rawMaxOperatingDays = library.bookCount / library.throughput;
+                if (statistics[index].rawMaxOperatingDays > (problem.dayCount - library.signUpTime))
+                {
+                        statistics[index].rawMaxOperatingDays = problem.dayCount - library.signUpTime;
+                }
+                statistics[index].rawScorePotential = statistics[index].rawAverageScorePerDay * statistics[index].rawMaxOperatingDays;
 
-    //         const auto &library = problem.libraries[subscription.libraryId];
-    //         for (int out = 0; out < library.throughput; out++) {
-    //             bool hasBeenAdded = false;
+                if (problem.libraries[index].signUpTime > maxSignUpTime)
+                {
+                        maxSignUpTime = problem.libraries[index].signUpTime;
+                }
 
-    //             for (auto book : library.books) {
-    //                 if (!alreadySent[book]) {
-    //                     subscription.bookIds.push_back(book);
-    //                     alreadySent[book] = true;
-    //                     hasBeenAdded = true;
-    //                     break;
-    //                 }
-    //             }
+                if (problem.libraries[index].signUpTime < minSignUpTime)
+                {
+                        minSignUpTime = problem.libraries[index].signUpTime;
+                }
 
-    //             if (!hasBeenAdded) {
-    //                 emptySubscriptions.insert(subscription.libraryId);
-    //             }
-    //         }
-    //     }
-    // }
+                if (statistics[index].rawScorePotential > maxScorePotential)
+                {
+                        maxScorePotential = statistics[index].rawScorePotential;
+                }
 
-    // solution.subscriptions.erase(
-    //     std::remove_if(
-    //         solution.subscriptions.begin(),
-    //         solution.subscriptions.end(),
-    //         [](auto &subscription) {
-    //             return subscription.bookIds.size() == 0;
-    //         }
-    //     ),
-    //     solution.subscriptions.end()
-    // );
+                if (statistics[index].rawScorePotential < minScorePotential)
+                {
+                        minScorePotential = statistics[index].rawScorePotential;
+                }
+                index++;
+        }
 
-    return solution;
+        index = 0;
+        cerr << "-----------------" << endl;
+        for (const auto &library : problem.libraries)
+        {
+                statistics[index].scorePotential = regularize(statistics[index].rawScorePotential, minScorePotential, maxScorePotential);
+                statistics[index].signUpTime = inverseRegularize(problem.libraries[index].signUpTime, minSignUpTime, maxSignUpTime);
+
+                cerr << index << ";Rare books = " << statistics[index].rawRareBookCount << "/" << library.bookCount << endl;
+                cerr << index << ";Signup time score = " << statistics[index].signUpTime << endl;
+                cerr << index << ";Score potential score = " << statistics[index].rawScorePotential << ";" << minScorePotential << endl;
+                cerr << index << ";" << statistics[index].scorePotential << ";" << statistics[index].signUpTime << endl;
+                index++;
+        }
+}
+
+void computeLibraryScores(std::vector<LibraryStatistics> &statistics, double scorePotentialWeight = 2, double signUpTimeWeight = 1)
+{
+        int index = 0;
+        cerr << "-----------------" << endl;
+        for (auto &statistic : statistics)
+        {
+                double composants[] = {
+                    scorePotentialWeight * statistic.scorePotential,
+                    signUpTimeWeight * statistic.signUpTime};
+                statistic.aggregatedScore = vectorNorm(
+                    composants, composants + 2);
+                cerr << "library_score" << index << ";" << statistic.aggregatedScore << endl;
+        }
+}
+
+void computeBookStatistics(std::vector<BookStatistics> &statistics, const Problem &problem)
+{
+        unsigned int minScore = problem.bookScores[0];
+        unsigned int maxScore = problem.bookScores[0];
+
+        double minIdf = problem.libraryCount;
+        double maxIdf = 0;
+        for (const auto &library : problem.libraries)
+        {
+                for (const auto &book : library.books)
+                {
+                        statistics[book].libraryCount++;
+                        statistics[book].rawIdf = (double)problem.libraryCount / statistics[book].libraryCount;
+                        statistics[book].score = problem.bookScores[book];
+                        if (statistics[book].score > maxScore)
+                        {
+                                maxScore = problem.bookScores[book];
+                        }
+                        if (statistics[book].score < minScore)
+                        {
+                                minScore = problem.bookScores[book];
+                        }
+                        if (statistics[book].rawIdf > maxIdf)
+                        {
+                                maxIdf = statistics[book].rawIdf;
+                        }
+                        if (statistics[book].rawIdf < minIdf)
+                        {
+                                minIdf = statistics[book].rawIdf;
+                        }
+                }
+        }
+
+        int index = 0;
+        cerr << "-----------------" << endl;
+        for (auto &statistic : statistics)
+        {
+                statistic.score = regularize(problem.bookScores[index], minScore, maxScore);
+                statistic.idf = regularize(statistics[index].rawIdf, minIdf, maxIdf);
+                cerr << "book;" << index << ";" << problem.bookScores[index] << ";score=" << statistic.score << ";" << statistic.rawIdf << ";" << statistic.idf << endl;
+                index++;
+        }
+}
+
+void computeBookScores(std::vector<BookStatistics> &statistics, double scoreWeight = 1, double idfWeight = 1)
+{
+        int index = 0;
+        cerr << "-----------------" << endl;
+        for (auto &statistic : statistics)
+        {
+                double composants[] = {
+                    scoreWeight * statistic.score,
+                    idfWeight * statistic.idf};
+                statistic.aggregatedScore = vectorNorm(
+                    composants, composants + 2);
+                cerr << "book_score" << index << ";" << statistic.aggregatedScore << endl;
+        }
+}
+
+Solver maxSolver([](const Problem &problem, const Options &) {
+        std::vector<BookStatistics> bookStatistics(problem.bookCount);
+        std::vector<LibraryStatistics> libraryStatistics(problem.libraryCount);
+        Problem preparedProblem = problem;
+
+        computeBookStatistics(bookStatistics, problem);
+        computeBookScores(bookStatistics);
+        computeLibraryStatistics(libraryStatistics, problem, bookStatistics);
+        computeLibraryScores(libraryStatistics);
+
+        std::cerr << "BOOKS: " << preparedProblem.bookCount << std::endl;
+
+        Solution solution;
+
+        std::bitset<1000000> bookState; // 0: taken, 1: available
+
+        bookState.set();
+
+        // Sort libraries by signUpTime
+        std::cerr << "Sort libraries" << std::endl;
+        std::sort(
+            preparedProblem.libraries.begin(),
+            preparedProblem.libraries.end(),
+            [&libraryStatistics](const auto &library1, const auto &library2) {
+                    return libraryStatistics[library1.id].aggregatedScore < libraryStatistics[library2.id].aggregatedScore;
+            });
+        std::cerr << "Sort libraries - done" << std::endl;
+
+        // Sort libraries books by score
+        std::cerr << "Sort libraries books" << std::endl;
+        for (auto &library : preparedProblem.libraries)
+        {
+                std::sort(
+                    library.books.begin(),
+                    library.books.end(),
+                    [&bookStatistics](auto book_id1, auto book_id2) {
+                            return bookStatistics[book_id1].aggregatedScore > bookStatistics[book_id2].aggregatedScore;
+                    });
+        }
+        std::cerr << "Sort libraries books - done" << std::endl;
+
+        std::cerr << "Compute solution" << std::endl;
+        unsigned int score = 0;
+        for (const auto &library : preparedProblem.libraries)
+        {
+                auto sentBookCount = library.throughput * (preparedProblem.dayCount - library.signUpTime);
+
+                Subscription subscription{library.id};
+
+                if (bookState.any())
+                {
+                        for (auto it = library.books.begin(), last = library.books.end(); it < last && sentBookCount > 0; ++it)
+                        {
+                                const auto book_id = *it;
+                                if (bookState[book_id])
+                                {
+                                        bookState[book_id] = false;
+                                        score += problem.bookScores[book_id];
+                                        subscription.bookIds.emplace_back(book_id);
+                                }
+                        }
+
+                        if (subscription.bookIds.size() > 0)
+                        {
+                                solution.subscriptions.emplace_back(subscription);
+                        }
+                }
+        }
+        std::cerr << "Compute solution - done: " << score << std::endl;
+
+        return solution;
 });
-
