@@ -33,6 +33,8 @@ struct LibraryStatistics
 
         double scorePotential;
         double signUpTime; // (!) More is better (!)
+        double rareBooks;
+        double throughput;
 
         double rawBookScoreTotal;
         unsigned int rawRareBookCount;
@@ -105,15 +107,10 @@ long double vectorNorm(Iter_T first, Iter_T last)
 
 void computeLibraryStatistics(std::vector<LibraryStatistics> &statistics, const Problem &problem, std::vector<BookStatistics> &bookStatistics)
 {
-        Statistics<double> scorePotentialStats;
         Statistics<unsigned int> signUpTimeStats;
         Statistics<unsigned int> throughputStats;
-
-        double minScorePotential = std::numeric_limits<double>::max();
-        double maxScorePotential = std::numeric_limits<double>::min();
-
-        double minSignUpTime = problem.libraries[0].signUpTime;
-        double maxSignUpTime = problem.libraries[0].signUpTime;
+        Statistics<unsigned int> rareBooksStats;
+        Statistics<double> scorePotentialStats;
 
         int index = 0;
         for (const auto &library : problem.libraries)
@@ -121,7 +118,7 @@ void computeLibraryStatistics(std::vector<LibraryStatistics> &statistics, const 
                 for (const auto &book : library.books)
                 {
                         statistics[index].rawBookScoreTotal += bookStatistics[book].aggregatedScore;
-                        if (bookStatistics[book].idf > 0.9)
+                        if (bookStatistics[book].idf > 0.99)
                         {
                                 statistics[index].rawRareBookCount++;
                         }
@@ -135,40 +132,21 @@ void computeLibraryStatistics(std::vector<LibraryStatistics> &statistics, const 
                 }
                 statistics[index].rawScorePotential = statistics[index].rawAverageScorePerDay * statistics[index].rawMaxOperatingDays;
 
-                if (problem.libraries[index].signUpTime > maxSignUpTime)
-                {
-                        maxSignUpTime = problem.libraries[index].signUpTime;
-                }
+                signUpTimeStats.count(statistics[index].signUpTime);
+                throughputStats.count(problem.libraries[index].throughput);
+                rareBooksStats.count(statistics[index].rawRareBookCount);
+                scorePotentialStats.count(statistics[index].rawScorePotential);
 
-                if (problem.libraries[index].signUpTime < minSignUpTime)
-                {
-                        minSignUpTime = problem.libraries[index].signUpTime;
-                }
-
-                if (statistics[index].rawScorePotential > maxScorePotential)
-                {
-                        maxScorePotential = statistics[index].rawScorePotential;
-                }
-
-                if (statistics[index].rawScorePotential < minScorePotential)
-                {
-                        minScorePotential = statistics[index].rawScorePotential;
-                }
                 index++;
         }
 
         index = 0;
-        cerr << "-----------------" << endl;
         for (const auto &library : problem.libraries)
         {
-                statistics[index].scorePotential = regularize(statistics[index].rawScorePotential, minScorePotential, maxScorePotential);
-                statistics[index].signUpTime = 1 - regularize(problem.libraries[index].signUpTime, minSignUpTime, maxSignUpTime);
-                /*
-                cerr << index << ";Rare books = " << statistics[index].rawRareBookCount << "/" << library.bookCount << endl;
-                cerr << index << ";Signup time score = " << statistics[index].signUpTime << endl;
-                cerr << index << ";Score potential score = " << statistics[index].rawScorePotential << ";" << minScorePotential << endl;
-                cerr << index << ";" << statistics[index].scorePotential << ";" << statistics[index].signUpTime << endl;
-                */
+                statistics[index].signUpTime = 1 - signUpTimeStats.regularize(problem.libraries[index].signUpTime);
+                statistics[index].scorePotential = scorePotentialStats.regularize(statistics[index].rawScorePotential);
+                statistics[index].rareBooks = rareBooksStats.regularize(statistics[index].rawRareBookCount);
+                statistics[index].throughput = throughputStats.regularize(problem.libraries[index].throughput);
                 index++;
         }
 }
@@ -184,7 +162,14 @@ void computeLibraryScores(std::vector<LibraryStatistics> &statistics, double sco
                     signUpTimeWeight * statistic.signUpTime};
                 statistic.aggregatedScore = vectorNorm(
                     composants, composants + 2);
-                cerr << "library_score;" << index << ";" << statistic.aggregatedScore << endl;
+                cerr << "library=" << index
+                     << ";rawScorePotential=" << statistic.rawScorePotential
+                     << ";scorePotential=" << statistic.scorePotential
+                     << ";signUpTime=" << statistic.signUpTime
+                     << ";rawRareBooks=" << statistic.rawRareBookCount
+                     << ";rareBooks=" << statistic.rareBooks
+                     << ";throughput=" << statistic.throughput
+                     << ";aggregatedScore=" << statistic.aggregatedScore << endl;
                 index++;
         }
 }
@@ -257,12 +242,6 @@ Solver maxSolver([](const Problem &input, const Options &) {
         std::vector<LibraryStatistics> libraryStatistics(preparedProblem.libraryCount);
 
         computeBookStatistics(bookStatistics, input);
-        for (const auto score : input.bookScores)
-        {
-
-                cerr << score << " ";
-        }
-        cerr << endl;
         computeBookScores(bookStatistics);
         computeLibraryStatistics(libraryStatistics, input, bookStatistics);
         computeLibraryScores(libraryStatistics);
