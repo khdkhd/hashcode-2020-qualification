@@ -149,7 +149,7 @@ void computeLibraryStatistics(std::vector<LibraryStatistics> &statistics, const 
     }
 }
 
-void computeLibraryScores(std::vector<LibraryStatistics> &statistics, double scorePotentialWeight = 1, double signUpTimeWeight = 3, double rareBooksWeight = 1, double throughputWeight = 0)
+void computeLibraryScores(std::vector<LibraryStatistics> &statistics, double scorePotentialWeight = 2, double signUpTimeWeight = 3, double rareBooksWeight = 0, double throughputWeight = 0)
 {
     int index = 0;
     cerr << "-----------------" << endl;
@@ -255,12 +255,14 @@ Problem prepareProblem(const Problem &input, const std::vector<BookStatistics> &
     return preparedProblem;
 }
 
-vector<Subscription> build(const Problem &problem, const bitset<30000> &ignoredLibraries)
+Solution buildSolution(const Problem &problem, const bitset<30000> &ignoredLibraries)
 {
     std::bitset<1000000> scanned;
 
     cerr << "starting computation" << endl;
-    vector<Subscription> subscriptions;
+
+    Solution solution;
+
     unsigned int score = 0;
 
     int lastActiveLibrary = 0;
@@ -286,7 +288,7 @@ vector<Subscription> build(const Problem &problem, const bitset<30000> &ignoredL
                 if (!scanned[bookId])
                 {
                     score += problem.bookScores[bookId];
-                    subscriptions[lib].bookIds.push_back(bookId);
+                    solution.subscriptions[lib].bookIds.push_back(bookId);
                     //solution.subscriptions[];
                     scanned[bookId] = true;
                     count++;
@@ -299,7 +301,7 @@ vector<Subscription> build(const Problem &problem, const bitset<30000> &ignoredL
             // cerr << "score: adding " << lastActiveSubscription << endl;
             Subscription subscription{};
             subscription.libraryId = problem.libraries[lastActiveLibrary].id;
-            subscriptions.push_back(subscription);
+            solution.subscriptions.push_back(subscription);
             lastActiveLibrary++;
             nextSignUpCountDown = day + problem.libraries[lastActiveLibrary].signUpTime;
         }
@@ -307,7 +309,7 @@ vector<Subscription> build(const Problem &problem, const bitset<30000> &ignoredL
 
     cerr << "[ON BUILD] score: " << score << endl;
 
-    return subscriptions;
+    return solution;
 }
 
 Solver max2Solver([](const Problem &input, const Options &) {
@@ -319,10 +321,8 @@ Solver max2Solver([](const Problem &input, const Options &) {
     computeBookScores(bookStatistics);
     computeLibraryStatistics(libraryStatistics, input, bookStatistics);
     computeLibraryScores(libraryStatistics);
-    Problem preparedProblem = prepareProblem(input, bookStatistics, libraryStatistics);
-
-    Solution solution;
-    solution.subscriptions = build(preparedProblem, ignoredLibraries);
+    const Problem preparedProblem = prepareProblem(input, bookStatistics, libraryStatistics);
+    const Solution solution = buildSolution(preparedProblem, ignoredLibraries);
     for (const auto &subcription : solution.subscriptions)
     {
         if (subcription.bookIds.size() == 0)
