@@ -7,7 +7,7 @@ list(APPEND SOLVERS
     "${CMAKE_CURRENT_SOURCE_DIR}/cpp/solvers/jux2.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/cpp/solvers/jux3.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/cpp/solvers/jux4.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/cpp/solvers/max2.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/cpp/solvers/max.cpp"
 )
 
 set(EXPORT_SOLVER_CPP "${CMAKE_BINARY_DIR}/solver.cpp")

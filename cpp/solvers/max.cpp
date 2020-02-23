@@ -99,7 +99,7 @@ long double vectorNorm(Iter_T first, Iter_T last)
     return sqrt(inner_product(first, last, first, 0.0L));
 }
 
-void computeLibraryStatistics(std::vector<LibraryStatistics> &statistics, const Problem &problem, std::vector<BookStatistics> &bookStatistics)
+void computeLibraryStatistics(std::vector<LibraryStatistics> &statistics, const Problem &problem, std::vector<BookStatistics> &bookStatistics, double rarenessThreshold = 0.999)
 {
     Statistics<double> potentialScoreStats;
     Statistics<int> signUpStats;
@@ -113,7 +113,7 @@ void computeLibraryStatistics(std::vector<LibraryStatistics> &statistics, const 
         for (const auto &book : library.books)
         {
             statistics[index].rawBookScoreTotal += bookStatistics[book].aggregatedScore;
-            if (bookStatistics[book].idf > 0.99)
+            if (bookStatistics[book].idf > rarenessThreshold)
             {
                 statistics[index].rawRareBookCount++;
             }
@@ -137,7 +137,6 @@ void computeLibraryStatistics(std::vector<LibraryStatistics> &statistics, const 
     }
 
     index = 0;
-    cerr << "-----------------" << endl;
     for (const auto &library : problem.libraries)
     {
         statistics[index].scorePotential = potentialScoreStats.regularize(statistics[index].rawScorePotential);
@@ -152,7 +151,6 @@ void computeLibraryStatistics(std::vector<LibraryStatistics> &statistics, const 
 void computeLibraryScores(std::vector<LibraryStatistics> &statistics, double scorePotentialWeight = 2, double signUpTimeWeight = 3, double rareBooksWeight = 0, double throughputWeight = 0)
 {
     int index = 0;
-    cerr << "-----------------" << endl;
     for (auto &statistic : statistics)
     {
         double composants[] = {
@@ -225,44 +223,40 @@ void computeBookScores(std::vector<BookStatistics> &statistics, double scoreWeig
     }
 }
 
+void prepareLibrary(Library &library, const std::vector<BookStatistics> &bookStatistics)
+{
+    std::sort(
+        library.books.begin(),
+        library.books.end(),
+        [&bookStatistics](auto book_id1, auto book_id2) {
+            return bookStatistics[book_id1].aggregatedScore > bookStatistics[book_id2].aggregatedScore;
+        });
+}
+
 Problem prepareProblem(const Problem &input, const std::vector<BookStatistics> &bookStatistics, std::vector<LibraryStatistics> &libraryStatistics)
 {
     Problem preparedProblem = input;
 
-    // Sort libraries by signUpTime
-    std::cerr << "Sort libraries" << std::endl;
     std::sort(
         preparedProblem.libraries.begin(),
         preparedProblem.libraries.end(),
         [&libraryStatistics](const auto &library1, const auto &library2) {
             return libraryStatistics[library1.id].aggregatedScore > libraryStatistics[library2.id].aggregatedScore;
         });
-    std::cerr << "Sort libraries - done" << std::endl;
 
-    // Sort libraries books by score
-    std::cerr << "Sort libraries books" << std::endl;
     for (auto &library : preparedProblem.libraries)
     {
-        std::sort(
-            library.books.begin(),
-            library.books.end(),
-            [&bookStatistics](auto book_id1, auto book_id2) {
-                return bookStatistics[book_id1].aggregatedScore > bookStatistics[book_id2].aggregatedScore;
-            });
+        prepareLibrary(library, bookStatistics);
     }
-    std::cerr << "Sort libraries books - done" << std::endl;
 
     return preparedProblem;
 }
 
-Solution buildSolution(const Problem &problem, const bitset<30000> &ignoredLibraries)
+Solution build(const Problem &problem)
 {
     std::bitset<1000000> scanned;
 
-    cerr << "starting computation" << endl;
-
     Solution solution;
-
     unsigned int score = 0;
 
     int lastActiveLibrary = 0;
@@ -299,37 +293,52 @@ Solution buildSolution(const Problem &problem, const bitset<30000> &ignoredLibra
         if (nextSignUpCountDown == day)
         {
             // cerr << "score: adding " << lastActiveSubscription << endl;
-            Subscription subscription{};
-            subscription.libraryId = problem.libraries[lastActiveLibrary].id;
+            Subscription subscription{problem.libraries[lastActiveLibrary].id};
             solution.subscriptions.push_back(subscription);
+
             lastActiveLibrary++;
             nextSignUpCountDown = day + problem.libraries[lastActiveLibrary].signUpTime;
         }
     }
+
+    solution.score = score;
 
     cerr << "[ON BUILD] score: " << score << endl;
 
     return solution;
 }
 
-Solver max2Solver([](const Problem &input, const Options &) {
+Solution solve(const Problem &input, double scorePotentialWeight = 2, double signUpTimeWeight = 3, double rareBooksWeight = 0, double throughputWeight = 0, double scoreWeight = 1, double idfWeight = 0, double rarenessThreshold = 0.999)
+{
     vector<BookStatistics> bookStatistics(input.bookCount);
     vector<LibraryStatistics> libraryStatistics(input.libraryCount);
-    bitset<30000> ignoredLibraries;
 
     computeBookStatistics(bookStatistics, input);
-    computeBookScores(bookStatistics);
-    computeLibraryStatistics(libraryStatistics, input, bookStatistics);
-    computeLibraryScores(libraryStatistics);
-    const Problem preparedProblem = prepareProblem(input, bookStatistics, libraryStatistics);
-    const Solution solution = buildSolution(preparedProblem, ignoredLibraries);
-    for (const auto &subcription : solution.subscriptions)
-    {
-        if (subcription.bookIds.size() == 0)
-        {
-            ignoredLibraries[subcription.libraryId] = true;
-            // cerr << "score: ERROR! Empty subscription" << endl;
-        }
-    }
+    computeBookScores(bookStatistics, scoreWeight, idfWeight);
+    computeLibraryStatistics(libraryStatistics, input, bookStatistics, rarenessThreshold);
+    computeLibraryScores(libraryStatistics, scorePotentialWeight, signUpTimeWeight, rareBooksWeight, throughputWeight);
+    Problem preparedProblem = prepareProblem(input, bookStatistics, libraryStatistics);
+    Solution solution = build(preparedProblem);
+    return solution;
+}
+
+Solver maxSolver([](const Problem &input, const Options &) {
+    Solution solution{0};
+    const double step = 0.25;
+    for (double tp = 0; tp < 1; tp += step)
+        for (double idf = 0; idf < 1; idf += step)
+            for (double rb = 0; rb < 1; rb += step)
+                for (double s = 0; s < 1; s += step)
+                    for (double sp = 0; sp < 1; sp += step)
+                        for (double sup = 0; sup < 1; sup += step)
+                        {
+                            Solution s2 = solve(input, sp, sup, rb, tp, s, idf);
+                            if (s2.score > solution.score)
+                            {
+                                solution = s2;
+                            }
+                            cerr << s2.score << "/" << solution.score << endl;
+                        }
+
     return solution;
 });

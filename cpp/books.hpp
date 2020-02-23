@@ -7,7 +7,8 @@
 #include <variant>
 #include <vector>
 
-struct Library {
+struct Library
+{
     unsigned int id{0};
     unsigned int signUpTime{0};
     unsigned int throughput{0};
@@ -15,7 +16,8 @@ struct Library {
     std::vector<unsigned int> books;
 };
 
-struct Problem {
+struct Problem
+{
     unsigned int bookCount{0};
     unsigned int libraryCount{0};
     unsigned int dayCount{0};
@@ -26,12 +28,15 @@ struct Problem {
 std::istream &operator>>(std::istream &, Problem &);
 std::ostream &operator<<(std::ostream &, const Problem &);
 
-struct Subscription {
+struct Subscription
+{
     unsigned int libraryId{0};
     std::vector<unsigned int> bookIds;
 };
 
-struct Solution {
+struct Solution
+{
+    unsigned int score{0};
     std::vector<Subscription> subscriptions;
 };
 
