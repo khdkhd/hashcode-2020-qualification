@@ -5,6 +5,16 @@
 #include <iostream>
 #include <numeric>
 
+namespace {
+unsigned int
+remainingDays(Problem &problem, unsigned int days) {
+    if (days >= problem.dayCount) {
+        return 0;
+    }
+    return problem.dayCount - days;
+}
+}
+
 Solver jux3Solver([](Problem &problem, const Options &) {
     Solution solution;
 
@@ -40,21 +50,21 @@ Solver jux3Solver([](Problem &problem, const Options &) {
     std::cerr << "Compute solution" << std::endl;
     for (const auto &library: problem.libraries) {
         sign_up_offset += library.signUpTime;
-        auto sentBookCount = library.throughput*(problem.dayCount - sign_up_offset);
+        auto sentBookCount = library.throughput*remainingDays(problem, sign_up_offset);
 
         Subscription subscription{library.id};
 
         if (bookState.any()) {
-            for (auto it = library.books.begin(), last = library.books.end()
-                    ; it < last && sentBookCount > 0
-                    ; ++it) {
-                const auto book_id = *it;
+            for (auto book_id: library.books) {
+                if (sentBookCount == 0) {
+                    break;
+                }
                 if (bookState[book_id]) {
                     bookState[book_id] = false;
+                    sentBookCount = sentBookCount - 1;
                     subscription.bookIds.emplace_back(book_id);
                 }
             }
-
             if (subscription.bookIds.size() > 0) {
                 solution.subscriptions.emplace_back(subscription);
             }

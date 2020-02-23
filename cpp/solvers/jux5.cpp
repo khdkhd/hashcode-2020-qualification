@@ -15,7 +15,7 @@ remainingDays(Problem &problem, unsigned int days) {
 }
 }
 
-Solver jux1Solver([](Problem &problem, const Options &) {
+Solver jux5Solver([](Problem &problem, const Options &) {
     Solution solution;
 
     std::bitset<1000000> bookState; // 0: already sent, 1: available
@@ -61,7 +61,9 @@ Solver jux1Solver([](Problem &problem, const Options &) {
         problem.libraries.begin(),
         problem.libraries.end(),
         [&library_scores](auto &library1, auto &library2) {
-            return library_scores[library1.id] > library_scores[library2.id];
+            return library1.signUpTime == library2.signUpTime
+                ? library_scores[library1.id] > library_scores[library2.id]
+                : library1.signUpTime < library2.signUpTime;
         }
     );
     std::cerr << "sort libraries - done!" << std::endl;

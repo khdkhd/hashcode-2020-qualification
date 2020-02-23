@@ -53,17 +53,16 @@ Solver jux2Solver([](Problem &problem, const Options &) {
         Subscription subscription{library.id};
 
         if (bookState.any()) {
-            for (auto it = library.books.begin(), last = library.books.end()
-                    ; it < last && sentBookCount > 0
-                    ; it++) {
-                const auto book_id = *it;
+            for (auto book_id: library.books) {
+                if (sentBookCount == 0) {
+                    break;
+                }
                 if (bookState[book_id]) {
                     bookState[book_id] = false;
                     sentBookCount = sentBookCount - 1;
                     subscription.bookIds.emplace_back(book_id);
                 }
             }
-
             if (subscription.bookIds.size() > 0) {
                 solution.subscriptions.emplace_back(subscription);
             }
