@@ -17,6 +17,24 @@
 
 using namespace std;
 
+struct BookWeights
+{
+    double scoreWeight;
+    double idfWeight;
+};
+
+struct LibraryWeights
+{
+    double scorePotentialWeight;
+    double signUpTimeWeight;
+    double throughputWeight;
+    double rareBooksWeight;
+    double bookCountWeight;
+    double rarenessThreshold;
+
+    BookWeights bookWeights;
+};
+
 struct BookStatistics
 {
     long double aggregatedScore;
@@ -360,16 +378,16 @@ unsigned int flagFirstEmptySubscription(const Solution &solution, std::bitset<30
     return -1;
 }
 
-Solution solve(const Problem &input, double scorePotentialWeight = 0.5, double signUpTimeWeight = 1, double rareBooksWeight = 0.25, double throughputWeight = 0, double scoreWeight = 1, double idfWeight = 0, double rarenessThreshold = 0.999, double bookCountWeight = 0)
+Solution solve(const Problem &input, const LibraryWeights &libraryWeights)
 {
     std::bitset<30000> ignoredLibraries;
     vector<BookStatistics> bookStatistics(input.bookCount);
     vector<LibraryStatistics> libraryStatistics(input.libraryCount);
 
     computeBookStatistics(bookStatistics, input);
-    computeBookScores(bookStatistics, scoreWeight, idfWeight);
-    computeLibraryStatistics(libraryStatistics, input, bookStatistics, rarenessThreshold);
-    computeLibraryScores(libraryStatistics, scorePotentialWeight, signUpTimeWeight, rareBooksWeight, throughputWeight, bookCountWeight);
+    computeBookScores(bookStatistics, libraryWeights.bookWeights.scoreWeight, libraryWeights.bookWeights.idfWeight);
+    computeLibraryStatistics(libraryStatistics, input, bookStatistics, libraryWeights.rarenessThreshold);
+    computeLibraryScores(libraryStatistics, libraryWeights.scorePotentialWeight, libraryWeights.signUpTimeWeight, libraryWeights.rareBooksWeight, libraryWeights.throughputWeight, libraryWeights.bookCountWeight);
     Problem preparedProblem = prepareProblem(input, bookStatistics, libraryStatistics);
     unsigned int empty = 0;
     Solution solution;
@@ -395,7 +413,8 @@ Solver maxSolver([](const Problem &input, const Options &) {
 
     from cat perl/best_stats.txt|./perl/extract_stats.pl|grep '5247056'|sort
     */
-    const Solution s1 = solve(input, 0.5, 1, 0, 0.25, 1, 0);
+    const LibraryWeights best1{0.5, 1, 0.25, 0, 0, 0.999, {1, 0}};
+    const Solution s1 = solve(input, best1);
 
     /*
     BEST FOR
@@ -406,7 +425,8 @@ Solver maxSolver([](const Problem &input, const Options &) {
 
     from cat perl/best_stats.txt|./perl/extract_stats.pl|grep '5505208'|grep '^3'|sort
     */
-    const Solution s2 = solve(input, 0.5, 1, 0.5, 0, 1, 0);
+    const LibraryWeights best2{0.5, 1, 0, 0.5, 0, 0.999, {1, 0}};
+    const Solution s2 = solve(input, best2);
 
     return (s1.score > s2.score) ? s1 : s2;
 });
