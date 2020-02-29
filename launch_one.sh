@@ -17,7 +17,7 @@ popd
 
 # Run
 now="$(date -u +'%Y-%m-%dT%H.%M.%SZ')"
-problem_name=$(echo "${file}" | sed 's/.*\///' | sed 's/\..*//');
+problem_name=$(basename "${file}" | sed 's/\..*$//');
 output="${SOLUTION_DIR}/${solver}/${now}_${problem_name}";
 mkdir -p "${output}";
 
