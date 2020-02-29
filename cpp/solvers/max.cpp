@@ -118,7 +118,7 @@ long double vectorNorm(Iter_T first, Iter_T last)
     return sqrt(inner_product(first, last, first, 0.0L));
 }
 
-void computeLibraryStatistics(std::vector<LibraryStatistics> &statistics, const Problem &problem, const std::vector<BookStatistics> &bookStatistics, const LibraryWeights &libraryWeights, const bitset<1000000> &ignoredBooks)
+void computeLibraryStatistics(std::vector<LibraryStatistics> &statistics, const Problem &problem, const std::vector<BookStatistics> &bookStatistics, const LibraryWeights &libraryWeights, const bitset<1000000> &ignoredBooks, const unsigned int spentDays)
 {
     Statistics<double> potentialScoreStats;
     Statistics<int> signUpStats;
@@ -145,9 +145,9 @@ void computeLibraryStatistics(std::vector<LibraryStatistics> &statistics, const 
         statistics[index].rawAverageScorePerDay = library.throughput * statistics[index].rawAverageBookScore;
         statistics[index].rawMaxOperatingDays = library.bookCount / library.throughput;
 
-        if (statistics[index].rawMaxOperatingDays > (problem.dayCount - library.signUpTime))
+        if (statistics[index].rawMaxOperatingDays > (problem.dayCount - spentDays - library.signUpTime))
         {
-            statistics[index].rawMaxOperatingDays = problem.dayCount - library.signUpTime;
+            statistics[index].rawMaxOperatingDays = problem.dayCount - spentDays - library.signUpTime;
         }
         statistics[index].rawScorePotential = statistics[index].rawAverageScorePerDay * statistics[index].rawMaxOperatingDays;
 
@@ -261,36 +261,9 @@ void prepareBooks(vector<unsigned int> &books, const std::vector<BookStatistics>
         });
 }
 
-Problem prepareProblem(const Problem &input, const std::vector<BookStatistics> &bookStatistics, std::vector<LibraryStatistics> &libraryStatistics, const unsigned int fromLibrary = 0)
+bool isEmptyLibrary(const vector<unsigned int> &books, const std::bitset<1000000> &scanned)
 {
-    Problem preparedProblem = input;
-
-    std::sort(
-        preparedProblem.libraries.begin() + fromLibrary,
-        preparedProblem.libraries.end(),
-        [&libraryStatistics](const auto &library1, const auto &library2) {
-            return libraryStatistics[library1.id].aggregatedScore > libraryStatistics[library2.id].aggregatedScore;
-        });
-
-    return preparedProblem;
-}
-
-Problem prepareProblemWithStats(const Problem &input, const LibraryWeights &libraryWeights, const vector<BookStatistics> &bookStatistics, const bitset<1000000> &ignoredBooks, const unsigned int fromLibrary = 0)
-{
-    vector<LibraryStatistics> libraryStatistics(input.libraryCount);
-
-    computeLibraryStatistics(libraryStatistics, input, bookStatistics, libraryWeights, ignoredBooks);
-    computeLibraryScores(libraryStatistics, libraryWeights.scorePotentialWeight, libraryWeights.signUpTimeWeight, libraryWeights.rareBooksWeight, libraryWeights.throughputWeight, libraryWeights.bookCountWeight);
-    return prepareProblem(input, bookStatistics, libraryStatistics, fromLibrary);
-}
-
-bool isEmptyLibrary(const Problem &problem, unsigned int library, const std::bitset<1000000> &scanned)
-{
-    if (library >= problem.libraries.size())
-    {
-        return false;
-    }
-    for (const auto book : problem.libraries[library].books)
+    for (const auto book : books)
     {
         if (!scanned[book])
             return false;
@@ -309,7 +282,7 @@ void prepareLibraries(vector<unsigned int> &libraryIds, const Problem &input, ve
         });
 }
 
-Solution build(const Problem &input, const LibraryWeights &libraryWeights)
+Solution solve(const Problem &input, const LibraryWeights &libraryWeights)
 {
     std::bitset<1000000> scanned;
 
@@ -324,21 +297,9 @@ Solution build(const Problem &input, const LibraryWeights &libraryWeights)
     }
 
     vector<LibraryStatistics> libraryStatistics(input.libraryCount);
-    computeLibraryStatistics(libraryStatistics, input, bookStatistics, libraryWeights, scanned);
+    computeLibraryStatistics(libraryStatistics, input, bookStatistics, libraryWeights, scanned, 0);
     computeLibraryScores(libraryStatistics, libraryWeights.scorePotentialWeight, libraryWeights.signUpTimeWeight, libraryWeights.rareBooksWeight, libraryWeights.throughputWeight, libraryWeights.bookCountWeight);
     prepareLibraries(libraryIds, input, libraryStatistics, 0);
-
-    Problem preparedProblem = prepareProblemWithStats(input, libraryWeights, bookStatistics, 0);
-
-    for (int i = 1; i <= input.libraryCount; i++)
-    {
-        if (preparedProblem.libraries[input.libraryCount - i].id != libraryIds[input.libraryCount - i])
-        {
-            cerr << "different!!!" << input.libraryCount - i << endl;
-        }
-        // cerr << preparedProblem.libraries[input.libraryCount - i].id << endl;
-        // cerr << libraryIds[input.libraryCount - i] << endl;
-    }
 
     Solution solution;
     solution.subscriptions.reserve(input.libraryCount);
@@ -352,12 +313,12 @@ Solution build(const Problem &input, const LibraryWeights &libraryWeights)
 
     for (int day = 0; day < input.dayCount; day++)
     {
-        if (day != 0 && day % 1000 == 0)
+        if (day != 0 && day % 10 == 0)
         {
-            // cerr << preparedProblem.libraries[0].id << "/" << preparedProblem.libraries[1].id << endl;
-            // preparedProblem = prepareProblemWithStats(preparedProblem, libraryWeights, 0);
-            // cerr << preparedProblem.libraries[0].id << "/" << preparedProblem.libraries[1].id << endl;
-            // cerr << "rearrange from " << lastActiveLibrary << "/" << preparedProblem.libraries[lastActiveLibrary].id << " on day " << day << endl;
+            // cerr << "recomputing from " << lastActiveLibrary << " on day " << day << "/" << input.dayCount << endl;
+            computeLibraryStatistics(libraryStatistics, input, bookStatistics, libraryWeights, scanned, 0);
+            computeLibraryScores(libraryStatistics, libraryWeights.scorePotentialWeight, libraryWeights.signUpTimeWeight, libraryWeights.rareBooksWeight, libraryWeights.throughputWeight, libraryWeights.bookCountWeight);
+            prepareLibraries(libraryIds, input, libraryStatistics, lastActiveLibrary + 1);
         }
 
         for (auto &ongoingSubscription : ongoingSubscriptions)
@@ -387,7 +348,7 @@ Solution build(const Problem &input, const LibraryWeights &libraryWeights)
         if (nextSignUpCountDown == day)
         {
             // cerr << "score: adding " << problem.libraries[lastActiveLibrary].id << endl;
-            const Library &library = preparedProblem.libraries[lastActiveLibrary];
+            const Library &library = input.libraries[libraryIds[lastActiveLibrary]];
 
             Subscription subscription{library.id};
             vector<unsigned int> books = library.books;
@@ -395,12 +356,13 @@ Solution build(const Problem &input, const LibraryWeights &libraryWeights)
 
             ongoingSubscriptions.push_back(make_tuple(subscription, books, 0));
 
-            while (++lastActiveLibrary < preparedProblem.libraries.size())
+            while (++lastActiveLibrary < libraryIds.size())
             {
-                const bool hasBooks = !isEmptyLibrary(preparedProblem, lastActiveLibrary, scanned);
+                const Library &next_library = input.libraries[libraryIds[lastActiveLibrary]];
+                const bool hasBooks = !isEmptyLibrary(next_library.books, scanned);
                 if (hasBooks)
                 {
-                    nextSignUpCountDown = day + preparedProblem.libraries[lastActiveLibrary].signUpTime;
+                    nextSignUpCountDown = day + input.libraries[libraryIds[lastActiveLibrary]].signUpTime;
                     break;
                 }
             }
@@ -413,14 +375,7 @@ Solution build(const Problem &input, const LibraryWeights &libraryWeights)
         solution.subscriptions.push_back(get<0>(ongoingSubscription));
     }
 
-    cerr << "[ON BUILD] score: " << score << endl;
-
     return solution;
-}
-
-Solution solve(const Problem &input, const LibraryWeights &libraryWeights)
-{
-    return build(input, libraryWeights);
 }
 
 Solver maxSolver([](const Problem &input, const Options &) {
@@ -450,7 +405,6 @@ Solver maxSolver([](const Problem &input, const Options &) {
     */
     const LibraryWeights best2{0.5, 1, 0, 0.5, 0, 0.999, {1, 0}};
 
-    return solve(input, best2);
     const Solution s1 = solve(input, best1);
     const Solution s2 = solve(input, best2);
 

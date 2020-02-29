@@ -24,3 +24,6 @@ mkdir -p "${output}";
 exec cat "${file}" | "${BUILD_DIR}/hashcode-2020-books" "${solver}" \
   > "${output}/${problem_name}.out" \
   2> >(tee -a "${output}/traces_${problem_name}.txt" >&2)
+
+cp "cpp/solvers/${solver}.cpp" "${output}"
+ln -s "${output}" "${SOLUTION_DIR}/${solver}/latest";
