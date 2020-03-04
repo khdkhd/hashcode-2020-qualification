@@ -7,6 +7,9 @@ list(APPEND SOLVERS
     "${CMAKE_CURRENT_SOURCE_DIR}/cpp/solvers/jux2.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/cpp/solvers/jux3.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/cpp/solvers/jux4.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/cpp/solvers/jux5.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/cpp/solvers/jux6.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/cpp/solvers/jux7.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/cpp/solvers/max.cpp"
 )
 

@@ -12,8 +12,8 @@ Solver jux6Solver([](Problem &problem, const Options &options) {
         createSolver("jux1"),
         createSolver("jux2"),
         createSolver("jux3"),
-        createSolver("jux4"),
         createSolver("jux5"),
+        createSolver("jux7"),
     };
 
     return std::reduce(

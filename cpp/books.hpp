@@ -7,12 +7,18 @@
 #include <variant>
 #include <vector>
 
+constexpr unsigned int MaxBookCount = 100000;
+
 struct Library {
+    using Books = std::vector<unsigned int>;
+    using BookIterator = std::vector<unsigned int>::iterator;
+    using BookConstIterator = std::vector<unsigned int>::const_iterator;
+
     unsigned int id{0};
     unsigned int signUpTime{0};
     unsigned int throughput{0};
     unsigned int bookCount{0};
-    std::vector<unsigned int> books;
+    Books books;
 };
 
 struct Problem {
