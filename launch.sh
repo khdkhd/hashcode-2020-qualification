@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # stop script with non-zero exit code if anything go wrong
-set -e
+set -ex
 
 # stop script with non-zero exit code when trying to reference an undefined
 # variable
@@ -28,6 +28,7 @@ export BOOKS_OUTPUT_DIR="$SOURCE_DIR/solutions/$BOOKS_ALGO/$(date -u +'%Y-%m-%dT
 # export BOOKS_OUTPUT_DIR="$SOURCE_DIR/solutions/$BOOKS_ALGO"
 
 mkdir -p "$BOOKS_OUTPUT_DIR"
-INPUT_FILES=$(IFS=$'\n'; find "$SOURCE_DIR/inputs" -type f)
+cp "cpp/solvers/${BOOKS_ALGO}.cpp" "${BOOKS_OUTPUT_DIR}/${BOOKS_ALGO}.cpp"
+INPUT_FILES=$(IFS=$'\n'; find "$SOURCE_DIR/inputs" -type f|sort)
 
-2>&1 "$BUILD_DIR/hashcode-2020-books" $BOOKS_ALGO ${INPUT_FILES[@]} | grep "score:"
+2>&1 "$BUILD_DIR/hashcode-2020-books" $BOOKS_ALGO ${INPUT_FILES[@]}

@@ -17,24 +17,6 @@
 
 using namespace std;
 
-struct BookWeights
-{
-    double scoreWeight;
-    double idfWeight;
-};
-
-struct LibraryWeights
-{
-    double scorePotentialWeight;
-    double signUpTimeWeight;
-    double throughputWeight;
-    double rareBooksWeight;
-    double bookCountWeight;
-    double rarenessThreshold;
-
-    BookWeights bookWeights;
-};
-
 struct BookStatistics
 {
     long double aggregatedScore;
@@ -56,7 +38,6 @@ struct LibraryStatistics
     double signUpTime; // (!) More is better (!)
     double throughput;
     double rareBooks;
-    double bookCount;
 
     double rawBookScoreTotal;
     unsigned int rawRareBookCount;
@@ -118,13 +99,12 @@ long double vectorNorm(Iter_T first, Iter_T last)
     return sqrt(inner_product(first, last, first, 0.0L));
 }
 
-void computeLibraryStatistics(std::vector<LibraryStatistics> &statistics, const Problem &problem, const std::vector<BookStatistics> &bookStatistics, const LibraryWeights &libraryWeights, const bitset<1000000> &ignoredBooks, const unsigned int spentDays)
+void computeLibraryStatistics(std::vector<LibraryStatistics> &statistics, const Problem &problem, std::vector<BookStatistics> &bookStatistics)
 {
     Statistics<double> potentialScoreStats;
     Statistics<int> signUpStats;
     Statistics<int> rareBooksStats;
     Statistics<int> throughputStats;
-    Statistics<int> bookCountStats;
 
     int index = 0;
     for (const auto &library : problem.libraries)
@@ -132,27 +112,23 @@ void computeLibraryStatistics(std::vector<LibraryStatistics> &statistics, const 
         statistics[index].libraryId = library.id;
         for (const auto &book : library.books)
         {
-            if (!ignoredBooks[book])
+            statistics[index].rawBookScoreTotal += bookStatistics[book].aggregatedScore;
+            if (bookStatistics[book].idf > 0.99)
             {
-                statistics[index].rawBookScoreTotal += bookStatistics[book].aggregatedScore;
-                if (bookStatistics[book].idf > libraryWeights.rarenessThreshold)
-                {
-                    statistics[index].rawRareBookCount++;
-                }
+                statistics[index].rawRareBookCount++;
             }
         }
         statistics[index].rawAverageBookScore = statistics[index].rawBookScoreTotal / library.bookCount;
         statistics[index].rawAverageScorePerDay = library.throughput * statistics[index].rawAverageBookScore;
         statistics[index].rawMaxOperatingDays = library.bookCount / library.throughput;
 
-        if (statistics[index].rawMaxOperatingDays > (problem.dayCount - spentDays - library.signUpTime))
+        if (statistics[index].rawMaxOperatingDays > (problem.dayCount - library.signUpTime))
         {
-            statistics[index].rawMaxOperatingDays = problem.dayCount - spentDays - library.signUpTime;
+            statistics[index].rawMaxOperatingDays = problem.dayCount - library.signUpTime;
         }
         statistics[index].rawScorePotential = statistics[index].rawAverageScorePerDay * statistics[index].rawMaxOperatingDays;
 
         signUpStats.count(problem.libraries[index].signUpTime);
-        bookCountStats.count(problem.libraries[index].bookCount);
         potentialScoreStats.count(statistics[index].rawScorePotential);
         rareBooksStats.count(statistics[index].rawRareBookCount);
         throughputStats.count(problem.libraries[index].throughput);
@@ -161,10 +137,10 @@ void computeLibraryStatistics(std::vector<LibraryStatistics> &statistics, const 
     }
 
     index = 0;
+    cerr << "-----------------" << endl;
     for (const auto &library : problem.libraries)
     {
         statistics[index].scorePotential = potentialScoreStats.regularize(statistics[index].rawScorePotential);
-        statistics[index].bookCount = bookCountStats.regularize(problem.libraries[index].bookCount);
         statistics[index].signUpTime = 1 - signUpStats.regularize(problem.libraries[index].signUpTime);
         statistics[index].throughput = throughputStats.regularize(problem.libraries[index].throughput);
         statistics[index].rareBooks = rareBooksStats.regularize(statistics[index].rawRareBookCount);
@@ -173,29 +149,27 @@ void computeLibraryStatistics(std::vector<LibraryStatistics> &statistics, const 
     }
 }
 
-void computeLibraryScores(std::vector<LibraryStatistics> &statistics, double scorePotentialWeight = 2, double signUpTimeWeight = 3, double rareBooksWeight = 0, double throughputWeight = 0, double bookCountWeight = 0)
+void computeLibraryScores(std::vector<LibraryStatistics> &statistics, double scorePotentialWeight = 2, double signUpTimeWeight = 3, double rareBooksWeight = 0, double throughputWeight = 0)
 {
     int index = 0;
+    cerr << "-----------------" << endl;
     for (auto &statistic : statistics)
     {
         double composants[] = {
             scorePotentialWeight * statistic.scorePotential,
             signUpTimeWeight * statistic.signUpTime,
             rareBooksWeight * statistic.rareBooks,
-            throughputWeight * statistic.throughput,
-            bookCountWeight * statistic.bookCount};
+            throughputWeight * statistic.throughput};
         statistic.aggregatedScore = vectorNorm(
-            composants, composants + 5);
-        /*
+            composants, composants + 4);
+
         cerr << "library=" << statistic.libraryId
              << ";rawScorePotential=" << statistic.rawScorePotential
              << ";signUpTime=" << statistic.signUpTime
              << ";throughput=" << statistic.throughput
-             << ";bookCount=" << statistic.bookCount
              << ";rareBooksCount=" << statistic.rawRareBookCount
              << ";rareBooks=" << statistic.rareBooks
              << ";aggregatedScore=" << statistic.aggregatedScore << endl;
-             */
         index++;
     }
 }
@@ -240,173 +214,201 @@ void computeBookScores(std::vector<BookStatistics> &statistics, double scoreWeig
             idfWeight * statistic.idf};
         statistic.aggregatedScore = vectorNorm(
             composants, composants + 2);
-        /*
+
         cerr << "book=" << index
              << ";rawScore=" << statistic.rawScore
              << ";regularizedScore=" << statistic.score
              << ";idf=" << statistic.rawIdf
              << ";regularizedIdf=" << statistic.idf
-             << ";regularizedScore=" << statistic.aggregatedScore << endl;*/
+             << ";regularizedScore=" << statistic.aggregatedScore << endl;
         index++;
     }
 }
 
-void prepareBooks(vector<unsigned int> &books, const std::vector<BookStatistics> &bookStatistics)
+Problem prepareProblem2(const Problem &input, const std::vector<BookStatistics> &bookStatistics, std::vector<LibraryStatistics> &libraryStatistics, vector<unsigned int> &rankedLibraries)
 {
-    std::sort(
-        books.begin(),
-        books.end(),
-        [&bookStatistics](auto book_id1, auto book_id2) {
-            return bookStatistics[book_id1].aggregatedScore > bookStatistics[book_id2].aggregatedScore;
-        });
-}
+    Problem preparedProblem = input;
 
-bool isEmptyLibrary(const vector<unsigned int> &books, const std::bitset<1000000> &scanned)
-{
-    for (const auto book : books)
+    for (int i = 0; i < input.libraryCount; i++)
     {
-        if (!scanned[book])
-            return false;
+        rankedLibraries[i] = i;
     }
-    return true;
-}
 
-void prepareLibraries(vector<unsigned int> &libraryIds, const Problem &input, vector<LibraryStatistics> &libraryStatistics, const unsigned int fromLibrary)
-{
-
+    // Sort library ID
+    std::cerr << "Sort libraries" << std::endl;
     std::sort(
-        libraryIds.begin() + fromLibrary,
-        libraryIds.end(),
-        [&libraryStatistics](const auto &library1, const auto &library2) {
+        rankedLibraries.begin(),
+        rankedLibraries.end(),
+        [&libraryStatistics](const auto library1, const auto library2) {
             return libraryStatistics[library1].aggregatedScore > libraryStatistics[library2].aggregatedScore;
         });
+    std::cerr << "Sort libraries - done" << std::endl;
+
+    // Sort libraries books by score
+    std::cerr << "Sort libraries books" << std::endl;
+    for (auto &library : preparedProblem.libraries)
+    {
+        std::sort(
+            library.books.begin(),
+            library.books.end(),
+            [&bookStatistics](auto book_id1, auto book_id2) {
+                return bookStatistics[book_id1].aggregatedScore > bookStatistics[book_id2].aggregatedScore;
+            });
+    }
+    std::cerr << "Sort libraries books - done" << std::endl;
+
+    return preparedProblem;
 }
 
-Solution solve(const Problem &input, const LibraryWeights &libraryWeights)
+Problem prepareProblem(const Problem &input, const std::vector<BookStatistics> &bookStatistics, std::vector<LibraryStatistics> &libraryStatistics)
+{
+    Problem preparedProblem = input;
+
+    // Sort libraries by signUpTime
+    std::cerr << "Sort libraries" << std::endl;
+    std::sort(
+        preparedProblem.libraries.begin(),
+        preparedProblem.libraries.end(),
+        [&libraryStatistics](const auto &library1, const auto &library2) {
+            return libraryStatistics[library1.id].aggregatedScore > libraryStatistics[library2.id].aggregatedScore;
+        });
+    std::cerr << "Sort libraries - done" << std::endl;
+
+    // Sort libraries books by score
+    std::cerr << "Sort libraries books" << std::endl;
+    for (auto &library : preparedProblem.libraries)
+    {
+        std::sort(
+            library.books.begin(),
+            library.books.end(),
+            [&bookStatistics](auto book_id1, auto book_id2) {
+                return bookStatistics[book_id1].aggregatedScore > bookStatistics[book_id2].aggregatedScore;
+            });
+    }
+    std::cerr << "Sort libraries books - done" << std::endl;
+
+    return preparedProblem;
+}
+
+Solution buildSolution2(const Problem &problem, const bitset<30000> &ignoredLibraries, const vector<unsigned int> &rankedLibraries)
 {
     std::bitset<1000000> scanned;
 
-    vector<BookStatistics> bookStatistics(input.bookCount);
-    computeBookStatistics(bookStatistics, input);
-    computeBookScores(bookStatistics, libraryWeights.bookWeights.scoreWeight, libraryWeights.bookWeights.idfWeight);
-
-    vector<unsigned int> libraryIds(input.libraryCount);
-    for (int i = 0; i < input.libraryCount; i++)
-    {
-        libraryIds[i] = i;
-    }
-
-    vector<LibraryStatistics> libraryStatistics(input.libraryCount);
-    computeLibraryStatistics(libraryStatistics, input, bookStatistics, libraryWeights, scanned, 0);
-    computeLibraryScores(libraryStatistics, libraryWeights.scorePotentialWeight, libraryWeights.signUpTimeWeight, libraryWeights.rareBooksWeight, libraryWeights.throughputWeight, libraryWeights.bookCountWeight);
-    prepareLibraries(libraryIds, input, libraryStatistics, 0);
+    cerr << "starting computation" << endl;
 
     Solution solution;
-    solution.subscriptions.reserve(input.libraryCount);
+
     unsigned int score = 0;
 
     int lastActiveLibrary = 0;
-    const Library &firstLibrary = input.libraries[libraryIds[lastActiveLibrary]];
+    const Library &firstLibrary = problem.libraries[lastActiveLibrary];
     unsigned int nextSignUpCountDown = firstLibrary.signUpTime;
 
-    vector<tuple<Subscription, vector<unsigned int>, unsigned int>> ongoingSubscriptions;
-
-    for (int day = 0; day < input.dayCount; day++)
+    vector<int> currentBookByLibrary(problem.libraryCount);
+    for (int day = 0; day < problem.dayCount; day++)
     {
-        if (day != 0 && day % 10 == 0)
+        // cerr << "before sending books" << endl;
+        for (auto &subscription : solution.subscriptions)
         {
-            // cerr << "recomputing from " << lastActiveLibrary << " on day " << day << "/" << input.dayCount << endl;
-            computeLibraryStatistics(libraryStatistics, input, bookStatistics, libraryWeights, scanned, 0);
-            computeLibraryScores(libraryStatistics, libraryWeights.scorePotentialWeight, libraryWeights.signUpTimeWeight, libraryWeights.rareBooksWeight, libraryWeights.throughputWeight, libraryWeights.bookCountWeight);
-            prepareLibraries(libraryIds, input, libraryStatistics, lastActiveLibrary + 1);
-        }
+            const auto lib = subscription.libraryId;
+            // cerr << "sending books to " << lib << endl;
+            const auto &library = problem.libraries[lib];
+            const auto &books = library.books;
+            const auto throughput = library.throughput;
 
-        for (auto &ongoingSubscription : ongoingSubscriptions)
-        {
-            auto &subscription = get<0>(ongoingSubscription);
-            const auto &books = get<1>(ongoingSubscription);
-            auto &bs = get<2>(ongoingSubscription);
-
-            const auto &throughput = input.libraries[subscription.libraryId].throughput;
-
-            //int bs = 0;
+            // cerr << "where were we?" << endl;
+            int &bs = currentBookByLibrary[lib];
+            // int bs = 0;
             int count = 0;
+            // cerr << "here: " << bs << endl;
+            // cerr << books.size() << endl;
             for (; bs < books.size() && count < throughput; bs++)
             {
+                // cerr << bs << "/" << books.size() << endl;
                 const auto bookId = books[bs];
+                // cerr << "Book: " << bookId << endl;
                 if (!scanned[bookId])
                 {
-                    score += input.bookScores[bookId];
+                    // cerr << "Book: " << bookId << " sent" << endl;
+                    score += problem.bookScores[bookId];
                     subscription.bookIds.push_back(bookId);
                     //solution.subscriptions[];
                     scanned[bookId] = true;
                     count++;
+                    // cerr << "Book: " << bookId << " counted" << endl;
                 }
             }
+            // cerr << "ok with sending to: " << library.id << endl;
         }
 
         if (nextSignUpCountDown == day)
         {
-            // cerr << "score: adding " << problem.libraries[lastActiveLibrary].id << endl;
-            const Library &library = input.libraries[libraryIds[lastActiveLibrary]];
-
-            Subscription subscription{library.id};
-            vector<unsigned int> books = library.books;
-            prepareBooks(books, bookStatistics);
-
-            ongoingSubscriptions.push_back(make_tuple(subscription, books, 0));
-
-            while (++lastActiveLibrary < libraryIds.size())
+            auto nextLibraryId = rankedLibraries[lastActiveLibrary];
+            Subscription subscription{nextLibraryId};
+            solution.subscriptions.push_back(subscription);
+            while (lastActiveLibrary + 1 < problem.libraries.size())
             {
-                const Library &next_library = input.libraries[libraryIds[lastActiveLibrary]];
-                const bool hasBooks = !isEmptyLibrary(next_library.books, scanned);
-                if (hasBooks)
+                lastActiveLibrary++;
+                if (!ignoredLibraries[rankedLibraries[lastActiveLibrary]])
                 {
-                    nextSignUpCountDown = day + input.libraries[libraryIds[lastActiveLibrary]].signUpTime;
+                    nextSignUpCountDown = day + problem.libraries[rankedLibraries[lastActiveLibrary]].signUpTime;
                     break;
                 }
             }
         }
     }
 
-    solution.score = score;
-    for (const auto &ongoingSubscription : ongoingSubscriptions)
-    {
-        solution.subscriptions.push_back(get<0>(ongoingSubscription));
-    }
+    cerr << "[ON BUILD] score: " << score << endl;
 
     return solution;
 }
 
-Solver maxSolver([](const Problem &input, const Options &) {
-    /*
-    rarenessThreshold = 0.999
-    bookCount = 0
-    */
+Solver max4Solver([](const Problem &input, const Options &) {
+    for (const auto &library : input.libraries)
+    {
+        if (library.id == 3953)
+        {
+            cerr << "DEBUG LIBRARY INPUT " << library.id << ": ";
+            for (const auto &book : library.books)
+            {
+                cerr << ";" << book;
+            }
+            cerr << endl;
+        }
+    }
 
-    /*
-    BEST FOR
-    - B (5813900)
-    - F (5247056):
-    throughput=0.25 IDF=0 rareBooks=0 bookScore=1 scorePotential=0.5 signUpTime=1
+    vector<BookStatistics> bookStatistics(input.bookCount);
+    vector<LibraryStatistics> libraryStatistics(input.libraryCount);
 
-    from cat perl/best_stats.txt|./perl/extract_stats.pl|grep '5247056'|sort
-    */
-    const LibraryWeights best1{0.5, 1, 0.25, 0, 0, 0.999, {1, 0}};
+    bitset<30000> ignoredLibraries;
+    vector<unsigned int> rankedLibraries(input.libraryCount);
 
-    /*
-    BEST FOR
-    - B (5813900)
-    - C (5505208)
-    - E (5031367)
-    throughput=0 IDF=0 rareBooks=0.5 bookScore=1 scorePotential=0.5 signUpTime=1
+    computeBookStatistics(bookStatistics, input);
+    computeBookScores(bookStatistics);
+    computeLibraryStatistics(libraryStatistics, input, bookStatistics);
+    computeLibraryScores(libraryStatistics);
 
-    from cat perl/best_stats.txt|./perl/extract_stats.pl|grep '5505208'|grep '^3'|sort
-    */
-    const LibraryWeights best2{0.5, 1, 0, 0.5, 0, 0.999, {1, 0}};
+    const Problem preparedProblem = prepareProblem2(input, bookStatistics, libraryStatistics, rankedLibraries);
+    // return buildSolution2(preparedProblem, ignoredLibraries, rankedLibraries);
+    bool hasEmptySubscription = true;
+    Solution solution;
+    while (hasEmptySubscription)
+    {
+        hasEmptySubscription = false;
+        solution = buildSolution2(preparedProblem, ignoredLibraries, rankedLibraries);
+        for (const auto &subscription : solution.subscriptions)
+        {
+            if (subscription.bookIds.empty())
+            {
+                cerr << "It has empty subscriptions" << endl;
+                hasEmptySubscription = true;
+                ignoredLibraries[subscription.libraryId] = true;
+                break;
+            }
+        }
+    }
 
-    const Solution s1 = solve(input, best1);
-    const Solution s2 = solve(input, best2);
+    cerr << "No empty subscriptions" << endl;
 
-    return (s1.score > s2.score) ? s1 : s2;
+    return solution;
 });

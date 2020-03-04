@@ -1,3 +1,5 @@
+.vscode
 /[Bb]uild*
 /*.zip
 /**/.DS_Store
+traces_*

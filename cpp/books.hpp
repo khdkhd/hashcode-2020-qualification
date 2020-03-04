@@ -38,6 +38,7 @@ struct Subscription {
 };
 
 struct Solution {
+    unsigned int score{0};
     std::vector<Subscription> subscriptions;
 };
 
